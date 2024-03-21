@@ -1,121 +1,211 @@
-// App.js
+import styled from "styled-components";
+import { useEffect, useState } from "react";
 
-import React, { useState, useEffect } from 'react';
-import Bird from './components/Bird';
-import Pipes from './components/Pipes';
-import './App.css';
+/**
+ * All the constant values required for the game to work.
+ * By changing these values we can effect the working of the game.
+ */
+const BIRD_HEIGHT = 28;
+const BIRD_WIDTH = 33;
+const WALL_HEIGHT = 600;
+const WALL_WIDTH = 400;
+const GRAVITY = 8;
+const OBJ_WIDTH = 52;
+const OBJ_SPEED = 6;
+const OBJ_GAP = 200;
 
-const App = () => {
-	const [birdPosition, setBirdPosition] = useState({ x: 50, y: 200 });
-	const [pipes, setPipes] = useState([]);
-	const [gameOver, setGameOver] = useState(false);
-	const [score, setScore] = useState(0);
-	const [gameStarted, setGameStarted] = useState(false);
+/**
+ * This function is the main component which renders all the game objects.
+ * @returns None
+ */
+function App() {
 
-	const jump = () => {
-		if (!gameOver && gameStarted) {
-			setBirdPosition((prev) => ({ ...prev, y: prev.y - 60 }));
-		} else if (!gameOver && !gameStarted) {
-			// Start the game on the first jump
-			setGameStarted(true);
-		} else {
-			// Restart the game
-			setBirdPosition({ x: 50, y: 200 });
-			setPipes([]);
-			setGameOver(false);
-			setGameStarted(true);
-		}
-	};
+  //Changing the game values based on the activities done in the game.
+  const [isStart, setIsStart] = useState(false);
+  const [birdpos, setBirdpos] = useState(300);
+  const [objHeight, setObjHeight] = useState(0);
+  const [objPos, setObjPos] = useState(WALL_WIDTH);
+  const [score, setScore] = useState(0);
 
-	const checkCollision = () => {
-		const birdTop = birdPosition.y;
-		const birdBottom = birdPosition.y + 50;
-		const birdLeft = birdPosition.x;
-		const birdRight = birdPosition.x + 50;
+  //End the game when the player hits the bottom of the screen.
+  useEffect(() => {
+    let intVal;
+    if (isStart && birdpos < WALL_HEIGHT - BIRD_HEIGHT) {
+      intVal = setInterval(() => {
+        setBirdpos((birdpos) => birdpos + GRAVITY);
+      }, 24);
+    }else{
+      setIsStart(false);
+      setBirdpos(300);
+      setScore(0);
+    }
+    return () => clearInterval(intVal);
+  });
 
-		pipes.forEach((pipe) => {
-			const pipeTop = pipe.y;
-			const pipeBottom = pipe.y + 600;
-			const pipeLeft = pipe.x;
-			const pipeRight = pipe.x + 100;
+  //Generating the pipes(obstacles) for the game.
+  useEffect(() => {
+    let objval;
+    if (isStart && objPos >= -OBJ_WIDTH) {
+      objval = setInterval(() => {
+        setObjPos((objPos) => objPos - OBJ_SPEED);
+      }, 24);
 
-			const isColliding =
-				birdRight > pipeLeft &&
-				birdLeft < pipeRight &&
-				birdBottom > pipeTop &&
-				birdTop < pipeBottom;
+      return () => {
+        clearInterval(objval);
+      };
+    } else {
+      setObjPos(WALL_WIDTH);
+      setObjHeight(Math.floor(Math.random() * (WALL_HEIGHT - OBJ_GAP)));
+      if (isStart) setScore((score) => score + 1);
+    }
+  }, [isStart, objPos]);
 
-			if (isColliding) {
-				if (birdLeft > pipeLeft && birdRight < pipeRight && birdBottom < pipeBottom) {
-					// Bird has crashed through the pipe, increase score
-					setScore((prevScore) => prevScore + 1);
-				} else {
-					// Bird has hit the pipe, end the game
-					setGameOver(true);
-					setGameStarted(false);
-				}
-			}
-		});
+  //Ends the game of the player hits one of the obstacles.
+  useEffect(() => {
+    let topObj = birdpos >= 0 && birdpos < objHeight;
+    let bottomObj =
+      birdpos <= WALL_HEIGHT &&
+      birdpos >=
+        WALL_HEIGHT - (WALL_HEIGHT - OBJ_GAP - objHeight) - BIRD_HEIGHT;
 
-		// Check if bird is out of the screen vertically
-		if (birdBottom > 800 || birdTop < -170) {
-			// Bird is out of bounds, end the game
-			setGameOver(true);
-			setGameStarted(false);
-		}
-	};
+    if (
+      objPos >= OBJ_WIDTH &&
+      objPos <= OBJ_WIDTH + 80 &&
+      (topObj || bottomObj) 
+    ) {
+      setIsStart(false);
+      setBirdpos(300);
+      setScore(0);
+    }
+  }, [isStart, birdpos, objHeight, objPos]);
 
-	useEffect(() => {
-		checkCollision();
-	}, [birdPosition, pipes, gameOver]);
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (e.code === 'Space') {
+        setIsStart(true);
+        setBirdpos((prev) => prev - 30);
+      }
+    };
+  
+    window.addEventListener('keypress', handleKeyPress);
+  
+    return () => {
+      window.removeEventListener('keypress', handleKeyPress);
+    };
+  }, [isStart, birdpos]); // Add isStart and birdpos to the dependency list  
 
-	useEffect(() => {
-		const gravity = setInterval(() => {
-			setBirdPosition((prev) => ({ ...prev, y: prev.y + 5 }));
-			checkCollision();
-		}, 30);
+  //Handles the player movements.
+  const handler = () => {
+    if (!isStart) setIsStart(true);
+    else if (birdpos < BIRD_HEIGHT) setBirdpos(0);
+    else setBirdpos((birdpos) => birdpos - 50);
+  };
 
-		const pipeGenerator = setInterval(() => {
-			if (!gameOver && gameStarted) {
-				setPipes((prev) => [
-					...prev,
-					{ x: 400, y: Math.floor(Math.random() * 300) },
-				]);
-			}
-		}, 2000);
+  const handleKeyDown = (event) => {
+    // Check if the pressed key is the spacebar
+    if (event.key === ' ' || event.key === 'Spacebar') {
+      // Prevent the default behavior to avoid scrolling the page
+      event.preventDefault();
+      
+      // Trigger the click event
+      handler();
+    }
+  };
 
-		const pipeMove = setInterval(() => {
-			if (!gameOver && gameStarted) {
-				setPipes((prev) =>
-					prev.map((pipe) => ({ ...pipe, x: pipe.x - 5 }))
-				);
-			}
-		}, 30);
-
-		return () => {
-			clearInterval(gravity);
-			clearInterval(pipeGenerator);
-			clearInterval(pipeMove);
-		};
-	}, [gameOver, gameStarted]);
-
-	return (
-		<div className={`App ${gameOver ? 'game-over' : ''}`} onClick={jump}>
-			<Bird birdPosition={birdPosition} />
-			{pipes.map((pipe, index) => (
-				<Pipes key={index} pipePosition={pipe} />
-			))}
-			{gameOver && (
-				<center>
-					<div className="game-over-message">
-						Game Over!
-						<br />
-						<p style={{ backgroundColor: 'blue', padding: "2px 6px", borderRadius: '5px' }}>Click anywhere to Restart</p>
-					</div>
-				</center>
-			)}
-		</div>
-	);
-};
+  return (
+    //Whole body of the game.
+    <Home onClick={handler} onKeyDown={handleKeyDown} tabIndex="0">
+      <ScoreShow>Score: {score}</ScoreShow>
+      <Background height={WALL_HEIGHT} width={WALL_WIDTH}>
+        {!isStart ? <Startboard>Click To Start</Startboard> : null}
+        <Obj
+          height={objHeight}
+          width={OBJ_WIDTH}
+          left={objPos}
+          top={0}
+          deg={180}
+        />
+        <Bird
+          height={BIRD_HEIGHT}
+          width={BIRD_WIDTH}
+          top={birdpos}
+          left={100}
+        />
+        <Obj
+          height={WALL_HEIGHT - OBJ_GAP - objHeight}
+          width={OBJ_WIDTH}
+          left={objPos}
+          top={WALL_HEIGHT - (objHeight + (WALL_HEIGHT - OBJ_GAP - objHeight))}
+          deg={0}
+        />
+      </Background>
+    </Home>
+  );
+}
 
 export default App;
+
+//All the stylesheets required for the game.
+const Home = styled.div`
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flexDirection: 'column';
+`;
+
+const Background = styled.div`
+  background-image: url("./images/background-day.png");
+  background-repeat: no-repeat;
+  background-size: ${(props) => props.width}px ${(props) => props.height}px;
+  width: ${(props) => props.width}px;
+  height: ${(props) => props.height}px;
+  position: relative;
+  overflow: hidden;
+  border: 2px solid black;
+`;
+
+const Bird = styled.div`
+  position: absolute;
+  background-image: url("./images/yellowbird-upflap.png");
+  background-repeat: no-repeat;
+  background-size: ${(props) => props.width}px ${(props) => props.height}px;
+  width: ${(props) => props.width}px;
+  height: ${(props) => props.height}px;
+  top: ${(props) => props.top}px;
+  left: ${(props) => props.left}px;
+`;
+
+const Obj = styled.div`
+  position: relative;
+  background-image: url("./images/pipe-green.png");
+  width: ${(props) => props.width}px;
+  height: ${(props) => props.height}px;
+  left: ${(props) => props.left}px;
+  top: ${(props) => props.top}px;
+  transform: rotate(${(props) => props.deg}deg);
+`;
+
+const Startboard = styled.div`
+  position: relative;
+  top: 49%;
+  background-color: black;
+  padding: 10px;
+  width: 100px;
+  left: 50%;
+  margin-left: -50px;
+  text-align: center;
+  font-size: 20px;
+  border-radius: 10px;
+  color: #fff;
+  font-weight: 600;
+`;
+
+const ScoreShow = styled.div`
+  position: absolute;
+  top: 10%;
+  left: 47%;
+  z-index: 1;
+  font-weight: bold;
+  font-size: 30px;
+`;
